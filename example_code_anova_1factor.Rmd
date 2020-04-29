@@ -1,0 +1,230 @@
+---
+title: "Anova one factor"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This article shows an example of the analysis of variance (ANOVA) using the statistical software R. The code used to generates this content can be seen in the next Github [repository](https://github.com/victorviro/design_of_experiments).
+
+## Dataset
+
+An engineer is interested in investigating the relationship between the radio-
+frequency (RF) power setting and the etch rate for a particular tool. The objective of an experiment like this is to model the relationship between etch rate and RF power and to specify the power setting that will give the desired target etch rate. She wants to test four levels of RF power: 160, 180, 200, and 220 W. She decided to test five wafers at each level of RF power.
+
+This is an example of a single-factor experiment with $a = 4$ levels of the factor and $n = 5$ replicates.
+
+Suppose that the engineer runs the experiment that we have designed in the random
+order. The observations that she obtains on the etch rate are shown in the next table.
+
+```{r echo=FALSE}
+library(kableExtra)
+etch_rate = c(575,542,530,539,570,565,593,590,579,610,600,651,610,637,629,725,700,715,685,710)
+power = c('very low','very low','very low','very low','very low','low','low','low','low','low','high','high','high','high','high','very high','very high','very high','very high','very high')
+
+data = data.frame(power,etch_rate) #, padding=-1L
+kable(data) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+## Plots
+
+It is always a good idea to examine experimental data graphically. The next figure presents boxplot for the etch rate at each level of RF power.
+
+```{r, echo=FALSE, fig.align='center'}
+library(ggplot2)
+ggplot(data, aes(x = reorder(power, etch_rate, FUN = median), y = etch_rate)) +
+  geom_boxplot(aes(fill = reorder(power, etch_rate, FUN = median)))+
+  geom_jitter(position=position_jitter(0.2)) +
+  theme_bw(base_size = 14) +
+  xlab("Power") +
+  ylab("Etch rate")+
+  scale_fill_discrete(guide = guide_legend(title = "Power"))
+``` 
+
+The graph indicates that the etch rate increases as the power increases. There is no strong evidence to suggest that the variability in the etch rate around the average depends on the power. On the basis of this simple graphical analysis, we strongly suspect that RF power affects the etch rate and (2) higher power result in increased etch rate.
+
+## Analysis of the problem
+
+Suppose that we wish to be more objective in our analysis of the data. Specifically, suppose that we wish to test for differences between the mean etch rates at all $a$ = 4 levels of RF power. Thus, we are interested in testing the equality of all four means. It might seem that this problem could be solved by performing a t-test for all six possible pairs of means. However, this is not the best solution to this problem. First of all, performing all six pairwise t-tests is inefficient. It takes a lot of effort. Second, conducting all these pairwise comparisons inflates the type I error. Suppose that all four means are equal, so if we select $\alpha=0.05$, the probability of reaching the correct decision on any single comparison is 0.95. However, the probability of reaching the correct conclusion on all six comparisons is considerably less than 0.95, so the type I error is inflated.
+
+The appropriate procedure for testing the equality of several means is the **analysis of variance**. In this section, we develop the single-factor analysis of variance for the fixed effects model.
+
+We will use the analysis of variance to test $H _0:\mu_1=\mu_2=\mu_3=\mu_4$  against the alternative $H_1: \text{some means are different}$.
+
+The Anova table is shown in the next table.
+
+```{r, echo=FALSE}
+data.aov = aov(etch_rate ~ power, data = data)
+summary_df = data.frame(summary(data.aov)[[1]])
+colnames(summary_df)= c("Df","Sum Sq","Mean Sq","F value","P value")#kable(dd, digits = 10)
+options(knitr.kable.NA = '')
+kable(summary_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+``` 
+
+Because the P-value is smaller than the level $\alpha=0.05$, we reject $H_0$ and conclude that the treatment means differ; that is, the RF power significantly affects the mean etch rate.
+
+## Checking assumptions of the model
+Violations of the basic assumptions and model adequacy can be easily investigated by the examination of **residuals**. We define the residual for observation $j$ in treatment $i$ as $$e_{ij}=y_{ij}-\hat{y}_{ij}$$
+
+### The normality assumption
+A check of the normality assumption could be made by plotting a histogram of the residuals. If the $NID(0,\sigma^2)$ assumption on the errors is satisfied, this plot should look like a sample from a normal distribution centered at zero. Unfortunately, with small samples, considerable fluctuation in the shape of a histogram often occurs, so the appearance of a moderate departure from normality does not necessarily imply a serious violation of the assumptions. Gross deviations from normality are potentially serious and require further analysis.
+
+An extremely useful procedure is to construct a **normal probability plot** of the residuals. If the error distribution is normal, this plot will resemble a straight line. In visualizing the straight line, place
+more emphasis on the central values of the plot than on the extremes.
+
+```{r, echo=FALSE, fig.align='center'}
+residuals = data.aov$residuals
+df = data.frame(residuals)
+ggplot(df, aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  xlab("Theorical") +
+  ylab("Residuals")
+```
+
+The general impression from examining this display is that the error distribution is approximately normal. The tendency of the normal probability plot to bend down slightly on the left side and upward slightly on the right side implies that the tails of the error distribution are somewhat thinner than would be anticipated in a normal distribution; that is, the largest residuals are not quite as large (in absolute value) as expected. This plot is not grossly nonnormal, however.
+
+Alternatively, we can use the **Shapiro-Wilk test** to check the normality of the errors. In this case, the null-hypothesis of this test is that the errors are normally distributed.
+
+The results of this test in the example are shown in the next table.
+
+
+```{r, echo=FALSE, fig.align='center'}
+
+shapiro_test <- shapiro.test(residuals)
+df_shapiro_test = data.frame(shapiro_test$statistic, shapiro_test$p.value, row.names = '')
+colnames(df_shapiro_test) = c('Statistic','P value')
+kable(df_shapiro_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+Because the P-value $p=0.2152>\alpha=0.05$ then the null hypothesis that the residuals came from a normally distributed population can not be rejected. This is the same conclusion reached by analyzing the normal probability plot of the residuals.
+
+### Independence of the errors
+
+Plotting the residuals in time order of data collection helps detect a strong correlation between the residuals. A tendency to have runs of positive and negative residuals indicates a positive correlation. This would imply that the independence assumption on the errors has been violated.
+
+A plot of these residuals versus run order or time is shown in the next figure. 
+
+```{r, echo=FALSE, fig.align='center'}
+df$index <- as.numeric(row.names(df))
+ggplot(df, aes(x=index, y = residuals)) +
+    geom_point()
+  
+```
+
+There is no reason to suspect any violation of independence or constant variance assumptions.
+
+### Nonconstant variance or homoscedasticity
+
+If the model is correct and the assumptions are satisfied, the residuals should be structureless; in particular, they should be unrelated to any other variable including the predicted response. A simple check is to plot the residuals versus the fitted values $\hat{y}_{ij}$ . (For the single-factor experiment model, remember that $\hat{y}_{ij}=\overline{y}_{i.}$, the $i$th treatment average.) This plot should not reveal any obvious pattern. The next figure plots the residuals versus the fitted values for the example. No unusual structure is apparent.
+
+
+
+```{r, echo=FALSE, fig.align='center'}
+df$fitted_values = data.aov$fitted.values 
+
+ggplot(df, aes(x=fitted_values, y = residuals)) +
+    geom_point()
+
+```
+
+
+A defect that occasionally shows up on this plot is **nonconstant variance**. Sometimes the variance of the observations increases as the magnitude of the observation increases. This would be the case if the error or background noise in the experiment was a constant percentage of the
+size of the observation. If this were the case, the residuals would get larger as $y_{ij}$ gets larger, and the plot of residuals versus $\hat{y}_{ij}$ would look like an outward-opening funnel or mega-
+phone. Nonconstant variance also arises in cases where the data follow a nonnormal, skewed distribution because in skewed distributions the variance tends to be a function of the mean.
+
+Inequality of variance also shows up occasionally on the plot of residuals versus run order. An outward-opening funnel pattern indicates that variability is increasing over time.
+
+Although residual plots are frequently used to diagnose inequality of variance, several statistical tests have also been proposed. These tests may be viewed as formal tests of the hypotheses
+$$H_0:\sigma_1^2=\sigma_2^2=...=\sigma_a^2$$
+$$H_1:\text{above not true for at least one } \sigma_i^2$$
+
+A widely used procedure to test the homogeneity of variances is the **Bartlett’s test**. The procedure involves computing a statistic whose sampling distribution is closely approximated by the chi-square distribution.
+
+The results of this test in the example are shown in the next table.
+
+```{r, echo=FALSE}
+df$power = data$power
+bartlett_test = bartlett.test(residuals~power, df)
+bartlett_df = data.frame(bartlett_test$statistic, bartlett_test$p.value, row.names = '')
+colnames(bartlett_df) = c('Statistic','P value')
+kable(bartlett_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+The P-value is $p=0.934>\alpha=0.05$, so we cannot reject the null hypothesis. There is no evidence to counter the claim that all four variances are the same. This is the same conclusion reached by analyzing the plot of residuals versus fitted values.
+
+Because Bartlett’s test is sensitive to the normality assumption, there may be situations where an alternative procedure would be useful. The **modified Levene test** is a very nice procedure that is robust to departures from normality. To test the hypothesis of equal variances in all treatments, the modified Levene test uses the absolute deviation of the observations $y_{ij}$ in each treatment from the treatment median.
+
+The results of this test in the example are shown in the next table.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(car)
+library(carData)
+levene_test = leveneTest(data = df, residuals~power)
+levene_test$Df = NULL
+levene_test = levene_test[c(1),]
+row.names(levene_test) = c('')
+colnames(levene_test) = c('Statistic','P value')
+kable(levene_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+The P-value is $p=0.8977>\alpha=0.05$, so we cannot reject the null hypothesis (that all four variances are the same).
+
+## Comparisons among treatment means
+In our analysis of variance for the fixed effects model, we reject the null hypothesis. Thus, there are differences between the treatment means but exactly which means differ is not specified. In this situation, further comparisons and analysis among groups of treatment means may be useful. The procedures for making these comparisons are usually called **multiple comparison methods**. In this section, we use different methods for making comparisons among individual treatment means or groups of these means.
+
+**Comparing pairs of treatment means**: In many practical situations, we will wish to compare only **pairs of means**. Frequently, we can determine which means differ by testing the differences between all pairs of treatment means. The null hypotheses that we wish to test is $H_0:\mu_i=\mu_j \text{ for all }i\neq j$. There are numerous procedures available for this problem.
+
+The **Tukey's test** is a method to compare only pairs of means. This procedure can also be used to construct confidence intervals on the differences in all pairs of means. The Tukey test controls the experiment-wise or *family* error rate at the selected level $\alpha$.
+
+The results of this test in the example are shown in the next table.
+
+```{r echo=FALSE}
+tukey_test = TukeyHSD(x=data.aov, conf.level=0.95)
+tukey_test_df = tukey_test$power
+colnames(tukey_test_df) = c('Difference','Lower ci','Uper ci','P value')
+kable(tukey_test_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+All contrasts are significant since the P-value is smaller than the level $\alpha=0.05$ for all comparisons. This indicates that all pairs of means differ. Therefore, each power setting results in a mean etch rate that differs from the mean etch rate at any other power setting.
+
+
+**Scheffé’s method for comparing all contrasts**: The *Scheffé method* is a procedure for comparing any and all possible contrasts between treatment means. This method can also be used to form confidence intervals for all possible contrasts among treatment means.
+
+To illustrate the procedure, consider the data in the example and suppose that the contrasts of interests are $\Gamma_1=\mu_1+\mu_2-\mu_3-\mu_4=0$ and $\Gamma_2=\mu_1-\mu_4$
+
+The results of this method in the example are shown in the next table.
+
+```{r , warning=FALSE, include=FALSE}
+library(DescTools)
+```
+
+```{r echo=FALSE, , warning=FALSE}
+#print(data.aov$xlevels)
+scheffe_test = ScheffeTest(data.aov, contrasts = matrix(c(1,-1,1,-1,
+                                                          0,0,1,-1), ncol=2))
+scheffe_test_df = scheffe_test$power
+colnames(scheffe_test_df) = c('Difference','Lower ci','Uper ci','P value')
+kable(scheffe_test_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+The P-values for both contrasts are smaller than the level $\alpha=0.05$. So both contrasts $\Gamma_1$ and $\Gamma_2$ do not equal zero. We conclude for contrast $\Gamma_1$ that the mean etch rates of power settings 1 and 2 (very high and high power) as a group differ from the means of power settings 3 and 4 (low and very low power) as a group. For the second contrast $\Gamma_2$ we conclude that the mean etch rates of treatments 1 (very low power) and 4 (very high power) differ significantly.
+
+
+
+## References
+
+- Design and analysis of experiments, Montgomery.
+
+
+
