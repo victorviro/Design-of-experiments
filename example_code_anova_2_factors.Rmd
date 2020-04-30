@@ -1,0 +1,363 @@
+---
+title: "Anova two factors"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This article shows an example of the analysis of variance (ANOVA) using the statistical software R. The code used to generates this content can be seen in the next Github [repository](https://github.com/victorviro/design_of_experiments).
+
+## Dataset
+
+An engineer is designing a battery for use in a device that will be subjected to some extreme variations in temperature. The only design parameter that he can select at this point is the plate material for the battery, and he has three possible choices. When the device is manufactured and is shipped to the field, the engineer has no control over the temperature extremes that the device will encounter, and he knows from experience that temperature will probably affect the effective battery life. However, the temperature can be controlled in the product development laboratory for a test.
+
+The engineer decides to test all three plate materials at three temperature levels: $15$ (low),
+$70$ (medium), and $125°F$ (high) because these temperature levels are consistent with the product end-use environment. Four batteries are tested at each combination of plate material and temperature, and all 36 tests are run in random order. The experiment and the resulting observed battery life data are given in the next table.
+
+
+
+
+```{r echo=FALSE}
+library(kableExtra)
+battery_life = c(130,155,34,40,20,70,74,180,80,75,82,58,150,188,136,122,25,70,159,126,106,115,58,45,138,110,174,120,96,104,168,160,150,139,82,60)
+temperature = c('low','low','medium','medium','high','high','low','low','medium','medium','high','high','low','low','medium','medium','high','high','low','low','medium','medium','high','high','low','low','medium','medium','high','high','low','low','medium','medium','high','high')
+material_type = c('A','A','A','A','A','A','A','A','A','A','A','A','B','B','B','B','B','B','B','B','B','B','B','B','C','C','C','C','C','C','C','C','C','C','C','C')
+
+data = data.frame(battery_life,temperature,material_type) #, padding=-1L
+kable(data) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+
+We can show the table in a different way to a better understanding of the data.
+
+```{r echo=FALSE}
+battery_life_matrix = matrix(data$battery_life,nrow = 6,byrow = TRUE)
+colnames(battery_life_matrix) = c('low','low','medium','medium','high','high')
+rownames(battery_life_matrix) = c('A','A','B','B','C','C')
+battery_life_table = as.table(battery_life_matrix)
+kable(battery_life_table) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+In this table, the columns represent the different temperatures and the rows depict the types of material.
+
+
+## Plots
+
+It is always a good idea to examine experimental data graphically. The next figure presents a boxplot for battery life at each level of temperature and material type.
+
+```{r, echo=FALSE, fig.align='center'}
+library(ggplot2)
+
+ggplot(aes(x=reorder(temperature,battery_life,FUN=median), y = battery_life, fill=material_type), data=data) +
+  geom_boxplot()+
+  #geom_jitter(position=position_jitter(0.2)) +
+  theme_bw(base_size = 14) +
+  xlab("Temperature") +
+  ylab("Battery life")+
+  scale_fill_discrete(guide = guide_legend(title = "Material type"))
+``` 
+
+
+The graph indicates that generally, the battery life increases as the temperature decreases (for material type A this is not so clear). Based on this simple graphical analysis, we strongly suspect that temperature affects the battery life (at least for material type B), and (2) generally smaller temperature result in increased battery life(for material type A this is not so clear).
+
+## Analysis of the problem
+Because there are two factors at three levels, this design is sometimes called a $3^2$ factorial design. In this problem the engineer wants to answer the following questions:
+
+- What effects do material type and temperature have on the life of the battery?
+
+- Is there a choice of material that would give a uniformly long life regardless of temperature?
+
+This design is a specific example of the general case of a two-factor factorial.
+
+The fixed effects model can be described as follow
+$$y_{ijk} = \mu+\tau_i + \beta_j+ (\tau\beta)_{ij} +\epsilon_{ijk} \mspace{36mu} i=1,...,a \mspace{12mu} j=1,...,b \mspace{12mu} k=1,2,...,n$$ 
+where $\mu$ is the overall mean effect, $\tau_i$ is the effect of the $i$th level of the row factor A, $\beta_j$ is the effect of the $j$th level of column factor B, $(\tau\beta)_{ij}$ is the effect of the interaction between $\tau_i$ and $\beta_j$ , and $\epsilon_{ijk}$ is a random error component. Both factors are assumed to be **fixed**.
+
+In the example, the number of levels for both factors temperature and material type are three so $a=3$ and $b=3$. We have four observations for each combination of the factors so $k=4$. There are $abn=3*3*4=36$ total observations
+
+We are interested in **testing hypotheses** about the equality of row treatment effects, say
+$$
+H_0: \tau_1=\tau_2=...=\tau_a=0\\
+H_1: \tau_i\neq0 \text{ for  at  least  one }i
+$$
+
+and the equality of column treatment effects, say
+
+$$
+H_0: \beta_1=\beta_2=...=\beta_b=0\\
+H_1: \beta_j\neq0 \text{ for  at  least  one }j
+$$
+
+We are also interested in determining whether row and column treatments *interact*. Thus, we also wish to test
+
+$$
+H_0: (\tau\beta)_{ij}=0 \text{ for all }ij\\
+H_1: (\tau\beta)_{ij}\neq0 \text{ for  at  least  one pair }ij
+$$
+
+These hypotheses are tested using a **two-factor analysis of variance**.
+
+The Anova table is shown in the next table.
+
+```{r, echo=FALSE}
+data.aov = aov(battery_life ~ temperature + material_type + temperature:material_type, data = data)
+summary_df = data.frame(summary(data.aov)[[1]])
+colnames(summary_df)= c("Df","Sum Sq","Mean Sq","F value","P value")#kable(dd, digits = 10)
+options(knitr.kable.NA = '')
+kable(summary_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+``` 
+
+Because the P-value is smaller than the level $\alpha=0.05$, we reject all null hypothesis $H_0$ and conclude that there is a significant interaction between material types and temperature and the main effects of material type and temperature are also significant.
+
+To assist in interpreting the results of this experiment, it is helpful to construct a graph of the average responses at each treatment combination. This graph is shown in the next figure.
+
+```{r, echo=FALSE}
+library(emmeans)
+
+emmip(data.aov, material_type ~ temperature, nesting.order = F )
+
+``` 
+
+
+The significant interaction is indicated by the lack of parallelism of the lines. In general, longer battery life is attained at low temperature, regardless of material type. Changing from low to an intermediate temperature, battery life with material type 3 may actually increase, whereas it decreases for types 1 and 2. From intermediate to high temperature, battery life decreases for material types 2 and 3 and is essentially unchanged for type 1. Material type 3 seems to give the best results if we want less loss of effective life as the temperature changes.
+
+We can also see the tests on the individual terms (temperature, material type, and temperature: material type).
+
+```{r, echo=FALSE}
+summa = summary(lm(data.aov))
+individual_tests_df = summa$coefficients
+colnames(individual_tests_df)= c("Estimate","Standard error","Statistic","P value")
+kable(individual_tests_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+``` 
+
+An F test is displayed for the model source of variation.
+
+```{r, echo=FALSE}
+library(broom)
+model_variation_df = glance(summa)
+# model_variation_df
+colnames(model_variation_df) = c("R-squared","Adjusted R-squared","Standard error","Statistic","P value","Df")
+kable(model_variation_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+``` 
+The P-value is small ($0.0001$), so the interpretation of this test is that at least one of the three terms in the model is significant. Also $\text{R-squared }=0.7652$. That is, about $77$ percent of the variability in the battery life is explained by the plate material in the battery, the temperature, and the material type–temperature interaction.
+
+In the next section, we discuss the use of the residuals and residual plots in model adequacy checking.
+
+
+
+## Checking assumptions of the model
+Violations of the basic assumptions and model adequacy can be easily investigated by the examination of **residuals**. The residuals for the two-factor factorial model with interaction are $$e_{ijk}=y_{ijk}-\hat{y}_{ijk}=y_{ijk}-\overline{y}_{ij.}$$
+
+### The normality assumption
+A check of the normality assumption could be made by plotting a histogram of the residuals. If the $NID(0,\sigma^2)$ assumption on the errors is satisfied, this plot should look like a sample from a normal distribution centered at zero. Unfortunately, with small samples, considerable fluctuation in the shape of a histogram often occurs, so the appearance of a moderate departure from normality does not necessarily imply a serious violation of the assumptions. Gross deviations from normality are potentially serious and require further analysis.
+
+An extremely useful procedure is to construct a **normal probability plot** of the residuals. If the error distribution is normal, this plot will resemble a straight line. In visualizing the straight line, place more emphasis on the central values of the plot than on the extremes.
+
+```{r, echo=FALSE, fig.align='center'}
+residuals = data.aov$residuals
+df = data.frame(residuals)
+ggplot(df, aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  xlab("Theorical") +
+  ylab("Residuals")
+```
+
+The general impression from examining this display is that the error distribution is approximately normal, although the largest negative residual ($-60.75$ at low temperature for material type 1) does stand out somewhat from the others. The standardized value of this residual is $\frac{-60.75}{\sqrt{675.21}}=-2.34$, and this is the only residual whose absolute value is larger than 2.
+
+Alternatively, we can use the **Shapiro-Wilk test** to check the normality of the errors. In this case, the null-hypothesis of this test is that the errors are normally distributed.
+
+The results of this test in the example are shown in the next table.
+
+
+```{r, echo=FALSE, fig.align='center'}
+shapiro_test <- shapiro.test(residuals)
+df_shapiro_test = data.frame(shapiro_test$statistic, shapiro_test$p.value, row.names = '')
+colnames(df_shapiro_test) = c('Statistic','P value')
+kable(df_shapiro_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Because the P-value is $p=0.6117267>\alpha=0.05$, the null hypothesis that the residuals came from a normally distributed population can not be rejected. This is the same conclusion reached by analyzing the normal probability plot of the residuals.
+
+### Independence of the errors
+
+Plotting the residuals in time order of data collection helps detect a strong correlation between the residuals. A tendency to have runs of positive and negative residuals indicates a positive correlation. This would imply that the independence assumption on the errors has been violated.
+
+A plot of these residuals versus run order or time is shown in the next figure. 
+
+```{r, echo=FALSE, fig.align='center'}
+df$index <- as.numeric(row.names(df))
+ggplot(df, aes(x=index, y = residuals)) +
+  geom_point() + 
+  geom_hline(yintercept=0) +
+  xlab("run order") 
+  
+```
+
+There is no reason to suspect any violation of independence or constant variance assumptions.
+
+### Nonconstant variance or homoscedasticity
+
+If the model is correct and the assumptions are satisfied, the residuals should be structureless; in particular, they should be unrelated to any other variable including the predicted response. A simple check is to plot the residuals versus the fitted values $\hat{y}_{ij.}$ ($\hat{y}_{ij}=\overline{y}_{ij.}$). This plot should not reveal any obvious pattern. The next figure plots the residuals versus the fitted values for the example.
+
+
+
+```{r, echo=FALSE, fig.align='center'}
+df$fitted_values = data.aov$fitted.values 
+
+ggplot(df, aes(x=fitted_values, y = residuals)) +
+    geom_point()+ 
+  geom_hline(yintercept=0)
+
+```
+There is some mild tendency for the variance of the residuals to increase as the battery life increases.
+
+Inequality of variance also shows up occasionally on the plot of residuals versus run order. An outward-opening funnel pattern indicates that variability is increasing over time.
+
+
+The next two figures plot the residuals versus temperature and material types, respectively. 
+
+```{r, echo=FALSE, fig.align='center'}
+df$temperature = data$temperature
+df$material_type = data$material_type
+par(mfrow=c(1,2)) 
+plot1 = ggplot(df, aes(x=temperature, y = residuals)) +
+          geom_point()
+
+plot2 = ggplot(df, aes(x=material_type, y = residuals)) +
+          geom_point()
+
+library(gridExtra)
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+
+Both plots indicate mild inequality of variance, with the treatment combination of $15°F$ (low temperature) and material type 1 possibly having larger variance than the others.
+
+We can see that the low temperature-material type 1 cell contains both extreme residuals ($-60.75$ and $45.25$). These two residuals are primarily responsible for the inequality of
+variance detected in these figures and in the plot of the residuals versus fitted values. Reexamination of the data does not reveal any obvious problem, such as an error in recording, so we accept these responses as legitimate. It is possible that this particular treatment combination produces a slightly more erratic battery life than the others. The problem, however, is not severe enough to have a dramatic impact on the analysis and conclusions.
+
+
+
+Although residual plots are frequently used to diagnose inequality of variance, several statistical tests have also been proposed. These tests may be viewed as formal tests of the hypotheses
+$$H_0:\sigma_1^2=\sigma_2^2=...=\sigma_a^2$$
+$$H_1:\text{above not true for at least one } \sigma_i^2$$
+
+A widely used procedure to test the homogeneity of variances is the **Bartlett’s test**. The procedure involves computing a statistic whose sampling distribution is closely approximated by the chi-square distribution.
+
+The results of this test in the example are shown in the next two tables. The first table tests the homogeneity of variances of the residuals for each level of factor temperature and the second table for levels of the factor material type.
+
+```{r, echo=FALSE}
+
+bartlett_test = bartlett.test(residuals~temperature, df)
+bartlett_df = data.frame(bartlett_test$statistic, bartlett_test$p.value, row.names = '')
+colnames(bartlett_df) = c('Statistic','P value')
+kable(bartlett_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+```{r, echo=FALSE}
+
+bartlett_test = bartlett.test(residuals~material_type, df)
+bartlett_df = data.frame(bartlett_test$statistic, bartlett_test$p.value, row.names = '')
+colnames(bartlett_df) = c('Statistic','P value')
+kable(bartlett_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+The P-value is bigger than the level $\alpha=0.05$, so we cannot reject the null hypothesis. 
+
+Because Bartlett’s test is sensitive to the normality assumption, there may be situations where an alternative procedure would be useful. The **modified Levene test** is a very nice procedure that is robust to departures from normality. To test the hypothesis of equal variances in all treatments, the modified Levene test uses the absolute deviation of the observations $y_{ij}$ in each treatment from the treatment median.
+
+The results of this test in the example are shown in the next two tables. The first table tests the homogeneity of variances of the residuals for each level of factor temperature and the second table for levels of the factor material type.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(car)
+library(carData)
+levene_test = leveneTest(data = df, residuals~temperature)
+levene_test$Df = NULL
+levene_test = levene_test[c(1),]
+row.names(levene_test) = c('')
+colnames(levene_test) = c('Statistic','P value')
+kable(levene_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(car)
+library(carData)
+levene_test = leveneTest(data = df, residuals~material_type)
+levene_test$Df = NULL
+levene_test = levene_test[c(1),]
+row.names(levene_test) = c('')
+colnames(levene_test) = c('Statistic','P value')
+kable(levene_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+The P-value is bigger than the level $\alpha=0.05$, so we cannot reject the null hypothesis (that all three variances are the same).
+
+
+
+
+## Multiple comparisons
+
+When the ANOVA indicates that row or column means differ, it is usually of interest to make comparisons between the individual row or column means to discover the specific differences.
+
+We now illustrate the use of **Tukey’s test** on the battery life data for example. Note
+that in this experiment, interaction is significant. When the interaction is significant, comparisons between the means of one factor (e.g., A) may be obscured by the AB interaction. One approach to this situation is to fix factor B at a specific level and apply Tukey’s test to the means of factor A at that level.
+
+To illustrate, suppose that in the example we are interested in detecting differences among the means of the three material types. Because interaction is significant, we make this comparison at just one level of temperature, say level 2 (medium temperature).
+We assume that the best estimate of the error variance is the $MS_E$ from the ANOVA table, utilizing the assumption that the experimental error variance is the same over all treatment
+combinations.
+
+The results of this test in the example are shown in the next table (the rows marked in bold specify the particular test).
+
+
+
+```{r echo=FALSE}
+# Comparing the means of one factor(the three temperature levels) using Tukey’s method
+# may be obscured by the temperature-material type interaction
+#tukey_test = TukeyHSD(x=data.aov, which = "temperature", conf.level=0.95)
+
+
+# Comparing the means of one factor(the three material types) using Tukey’s method
+# may be obscured by the temperature-material type interaction
+#tukey_test = TukeyHSD(x=data.aov, which = "material_type", conf.level=0.95)
+
+tukey_test = TukeyHSD(x=data.aov, which = "temperature:material_type", conf.level=0.95)
+tukey_test_df = tukey_test$`temperature:material_type`
+
+colnames(tukey_test_df) = c('Difference','Lower ci','Uper ci','P value')
+kable(tukey_test_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F) %>%
+  row_spec(c(18,21,33), bold = T)#, color = "white")#, background = "#D7261E")
+
+```
+
+This analysis indicates that at the medium temperature level, the mean battery life is the same for material types B and C and that the mean battery life for material type A differs significantly in comparison to both types B and C. Specifically, the mean battery life for material type A is significantly lower in comparison to both types B and C (see the graph of the average responses at each treatment combination).
+
+As the interaction is significant, we could compare all $ab=9$ cell means to determine which ones differ significantly. In this analysis, differences between cell means include interaction effects as well as both main effects. In the example, this would give 36 comparisons between all possible pairs of the nine-cell means (all these comparisons can be seen in the previous table).
+
+
+
+
+## References
+
+- Design and analysis of experiments, Montgomery.
+
+
+
