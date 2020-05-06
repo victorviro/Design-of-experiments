@@ -1,0 +1,278 @@
+---
+title: "Ancova one factor"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This article shows an example of the analysis of covariance (ANCOVA) using the statistical software R. The code used to generates this content and theory of ANCOVA in detail can be seen in the next Github [repository](https://github.com/victorviro/design_of_experiments).
+
+## Dataset
+
+A study performed to determine if there is a difference in the strength of a monofilament fiber produced by three different machines (A, B, and C). The data from this experiment are shown in the next table.
+
+
+```{r echo=FALSE}
+library(kableExtra)
+
+strength = c(36,41,39,42,49,40,48,39,45,44,35,37,42,34,32)
+diameter = c(20,25,24,25,32,22,28,22,30,28,21,23,26,21,15)
+machine=c('A','A','A','A','A','B','B','B','B','B','C','C','C','C','C')
+
+data = data.frame(strength,diameter,machine) 
+kable(data) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+
+## Plots
+
+It is always a good idea to examine experimental data graphically. The next figure presents a boxplot for the strength of the monofilament fiber at each machine.
+
+```{r, echo=FALSE, fig.align='center'}
+library(ggplot2)
+
+ggplot(aes(x=reorder(machine,strength,FUN=median), y = strength, fill=machine), data=data) +
+  geom_boxplot()+
+  geom_jitter(position=position_jitter(0.2)) +
+  theme_bw(base_size = 14) +
+  xlab("Machine") +
+  ylab("Strength of the fiber")+
+  scale_fill_discrete(guide = guide_legend(title = "Machine"))
+``` 
+
+
+The graph indicates that generally, the choice of the machine affects the strength of the fiber.
+
+The next figure creates a scatter plot between the variable diameter and the outcome variable (strength) at each level of the factor machine.
+
+
+```{r, echo=FALSE, fig.align='center'}
+
+ggplot(data, aes(x=diameter, y=strength, color=machine)) +
+  geom_point() + 
+  geom_smooth(method=lm, formula= y~x,se=FALSE, fullrange=TRUE)+
+  xlab("Diameter") +
+  ylab("Strength of the fiber")
+  #geom_smooth(method = lm, se=FALSE)
+``` 
+
+The strength of the fiber is also affected by its thickness (there is a linear relationship); consequently, a thicker fiber will generally be stronger than a thinner one. We can also see that the regression lines at each machine have a similar slope (for machines $B$ and $C$ are identical).
+
+## Analysis of the problem
+
+The analysis of covariance could be used to remove the effect of the thickness ($x$) (covariate) on strength ($y$) when testing for
+differences in strength between machines. Specifically, one-factor analysis of covariance.
+
+The fixed-effects model can be described as following
+
+$$y_{ij} = \mu+\tau_i + \beta(x_{ij}-\overline{x}_{..}) + \epsilon_{ij}; i=1,2,...,a; j=1,...,n$$ 
+
+where $y_{ij}$ is the $j$th observation on the response variable taken under the $i$th treatment or level of the single factor, $x_{ij}$ is the measurement made on the covariate corresponding to $y_{ij}$ (i.e., the $ij$th run), $\overline{x}_{..}$ is the mean of the $x_{ij}$ values, $\mu$ is an overall mean, $\mu_i$ is the effect of the $i$th treatment, $\beta$ is a linear regression coefficient indicating the dependency of $y_{ij}$ on $x_{ij}$ , and  $\epsilon_{ij}$ is a random error component. We assume that the errors $\epsilon_{ij}$ are NID(0, $\sigma^2$), that the slope $\beta \neq 0$ and the true relationship between $y_{ij}$ and $x_{ij}$ is linear, that the regression coefficients for each treatment are identical, and that the cobariate $x_{ij}$ is not affected by the treatments.
+
+This model assumes that all treatment regression lines have identical slopes.
+
+We are interested in **testing hypotheses** about the equality of treatment effects, say
+$$
+H_0: \tau_1=\tau_2=...=\tau_a=0\\
+H_1: \tau_i\neq0 \text{ for  at  least  one }i
+$$
+
+and 
+$$
+H_0: \beta=0\\
+H_1: \beta\neq0
+$$
+
+The Anova table is shown in the next table.
+
+```{r include=FALSE}
+library(car)
+library(carData)
+``` 
+```{r, echo=FALSE}
+data.aov = aov(strength ~ machine+diameter, data = data)
+ancova = Anova(data.aov, type="III") # alternatively lm(data.aov)
+colnames(ancova)= c("Sum Sq","Df","F value","P value")
+options(knitr.kable.NA = '')
+kable(ancova) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+``` 
+
+Because the P-value of the second contrast is smaller than the level $\alpha=0.05$, we reject the null hypothesis $H_0:\beta=0$. The P-value of the first contrast is bigger than the level $\alpha=0.05$, we reject the null hypothesis $H_0:\tau_1=\tau_2=...=\tau_a=0$ and conclude that there is no reason to believe that machines produce fibers of different diameters.
+
+
+In the next section, we discuss the use of the residuals and residual plots in model adequacy checking.
+
+
+
+## Checking assumptions of the model
+Violations of the basic assumptions and model adequacy can be easily investigated by the examination of **residuals**. The residuals for the one-factor analysis of covariance model are $$e_{ij}=y_{ij}-\hat{y}_{ij}=y_{ij}-\overline{y}_{i.}-\hat{\beta}(x_{ij}-\overline{x}_{i.})$$
+
+### The normality assumption
+A check of the normality assumption could be made by plotting a histogram of the residuals. If the $NID(0,\sigma^2)$ assumption on the errors is satisfied, this plot should look like a sample from a normal distribution centered at zero. Unfortunately, with small samples, considerable fluctuation in the shape of a histogram often occurs, so the appearance of a moderate departure from normality does not necessarily imply a serious violation of the assumptions. Gross deviations from normality are potentially serious and require further analysis.
+
+An extremely useful procedure is to construct a **normal probability plot** of the residuals. If the error distribution is normal, this plot will resemble a straight line. In visualizing the straight line, place more emphasis on the central values of the plot than on the extremes.
+
+```{r, echo=FALSE, fig.align='center'}
+residuals = data.aov$residuals
+df = data.frame(residuals)
+ggplot(df, aes(sample = residuals)) +
+  stat_qq() +
+  stat_qq_line() +
+  xlab("Theorical") +
+  ylab("Residuals")
+```
+
+The general impression from examining this display is that the error distribution is approximately normal.
+
+Alternatively, we can use the **Shapiro-Wilk test** to check the normality of the errors. In this case, the null-hypothesis of this test is that the errors are normally distributed.
+
+The results of this test in the example are shown in the next table.
+
+
+```{r, echo=FALSE, fig.align='center'}
+shapiro_test <- shapiro.test(residuals)
+df_shapiro_test = data.frame(shapiro_test$statistic, shapiro_test$p.value, row.names = '')
+colnames(df_shapiro_test) = c('Statistic','P value')
+kable(df_shapiro_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+Because the P-value is $p=0.7200509>\alpha=0.05$, the null hypothesis that the residuals came from a normally distributed population can not be rejected. This is the same conclusion reached by analyzing the normal probability plot of the residuals.
+
+### Independence of the errors
+
+Plotting the residuals in time order of data collection helps detect a strong correlation between the residuals. A tendency to have runs of positive and negative residuals indicates a positive correlation. This would imply that the independence assumption on the errors has been violated.
+
+A plot of these residuals versus run order or time is shown in the next figure. 
+
+```{r, echo=FALSE, fig.align='center'}
+df$index <- as.numeric(row.names(df))
+ggplot(df, aes(x=index, y = residuals)) +
+  geom_point() + 
+  geom_hline(yintercept=0) +
+  xlab("run order") 
+  
+```
+
+There is no reason to suspect any violation of independence or constant variance assumptions.
+
+### Nonconstant variance or homoscedasticity
+
+If the model is correct and the assumptions are satisfied, the residuals should be structureless; in particular, they should be unrelated to any other variable including the predicted response. A simple check is to plot the residuals versus the fitted values $\hat{y}_{ij}$. The next figure plots the residuals versus the fitted values for the example.
+
+
+
+```{r, echo=FALSE, fig.align='center'}
+df$fitted_values = data.aov$fitted.values 
+
+ggplot(df, aes(x=fitted_values, y = residuals)) +
+    geom_point()+ 
+  geom_hline(yintercept=0)
+
+```
+
+
+The next two figures plot the residuals versus diameter and machine, respectively. 
+
+```{r, echo=FALSE, fig.align='center'}
+df$diameter = data$diameter
+df$machine = data$machine
+par(mfrow=c(1,2)) 
+plot1 = ggplot(df, aes(x=diameter, y = residuals)) +
+          geom_point()
+
+plot2 = ggplot(df, aes(x=machine, y = residuals)) +
+          geom_point()
+
+library(gridExtra)
+grid.arrange(plot1, plot2, ncol = 2)
+```
+
+
+These plots do not reveal any major departures from the assumptions, so we conclude that the covariance model is appropriate for the breaking strength data.
+
+
+
+Although residual plots are frequently used to diagnose inequality of variance, several statistical tests have also been proposed. These tests may be viewed as formal tests of the hypotheses
+$$H_0:\sigma_1^2=\sigma_2^2=...=\sigma_a^2$$
+$$H_1:\text{above not true for at least one } \sigma_i^2$$
+
+A widely used procedure to test the homogeneity of variances is the **Bartlett’s test**. The procedure involves computing a statistic whose sampling distribution is closely approximated by the chi-square distribution.
+
+The results of this test in the example are shown in the next table. The table test the homogeneity of variances of the residuals for each level of the factor machine.
+
+```{r, echo=FALSE}
+
+bartlett_test = bartlett.test(residuals~machine, df)
+bartlett_df = data.frame(bartlett_test$statistic, bartlett_test$p.value, row.names = '')
+colnames(bartlett_df) = c('Statistic','P value')
+kable(bartlett_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+```
+
+The P-value is bigger than the level $\alpha=0.05$, so we cannot reject the null hypothesis. 
+
+Because Bartlett’s test is sensitive to the normality assumption, there may be situations where an alternative procedure would be useful. The **modified Levene test** is a very nice procedure that is robust to departures from normality. To test the hypothesis of equal variances in all treatments, the modified Levene test uses the absolute deviation of the observations $y_{ij}$ in each treatment from the treatment median.
+
+The results of this test in the example are shown in the next table. The table tests the homogeneity of variances of the residuals for each level of the factor machine.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(car)
+library(carData)
+levene_test = leveneTest(data = df, residuals~machine)
+levene_test$Df = NULL
+levene_test = levene_test[c(1),]
+row.names(levene_test) = c('')
+colnames(levene_test) = c('Statistic','P value')
+kable(levene_test) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+
+
+The P-value is bigger than the level $\alpha=0.05$, so we cannot reject the null hypothesis (that all three variances are the same).
+
+### Identical slopes of all treatment regression lines
+
+This model assumes that all treatment regression lines have identical slopes. If the treatments interact with the covariates this can result in non-identical slopes. Covariance analysis is not appropriate in these cases. Estimating and comparing different regression models is the correct approach.
+
+We have been seen a scatter plot between the variable diameter (covariate) and the outcome variable (strength) at each level of the factor machine and the regression lines at each machine have a similar slope. We could test this assumption through a One-Factor ANOVA model using the covariate as the response variable.
+
+## Multiple comparisons
+
+In our analysis of variance for the fixed effects model, we do not reject the null hypothesis. Thus, there are no differences between the treatment means. But if we had rejected the null hypothesis then there would be differences between the treatment means but exactly which means differ is not specified. In this situation, further comparisons and analysis among groups of treatment means could be useful. The procedures for making these comparisons are usually called **multiple comparison methods**.
+
+
+## Model without covariate
+It is interesting to note what would have happened in this experiment if an analysis of covariance had not been performed, that is, if the breaking strength data ($y$) had been analyzed as a completely randomized single-factor experiment in which the covariate x was ignored.
+
+The analysis of variance of the breaking strength data is shown in the next table.
+
+```{r, echo=FALSE}
+data.aov = aov(strength ~ machine, data = data)
+summary_df = data.frame(summary(data.aov)[[1]])
+colnames(summary_df)= c("Df","Sum Sq","Mean Sq","F value","P value")#kable(dd, digits = 10)
+options(knitr.kable.NA = '')
+kable(summary_df) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+``` 
+
+We immediately notice that the error estimate is much longer in this analysis. This is a reflection of the effectiveness of the analysis of covariance in reducing error variability.
+
+We would also conclude, based on this analysis, that machines differ significantly in the strength of fiber produced. This is exactly **opposite** the conclusion reached by the covariance analysis.
+
+## References
+
+- Design and analysis of experiments, Montgomery.
+
+
+
