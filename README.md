@@ -23,6 +23,8 @@ Much theory content is obtained through the book "Design and analysis of experim
 
 - [ANOVA two factors](https://rpubs.com/Victorviro/607207) ([code](https://github.com/victorviro/design_of_experiments/blob/master/example_code_anova_2_factors.Rmd))
 
+- [ANOVA two factors (Spanish)](https://github.com/victorviro/design_of_experiments/blob/master/trabajo-anova-2-factors.pdf) ([code](https://github.com/victorviro/design_of_experiments/blob/master/trabajo-anova-2-factors.Rmd))
+
 - [ANCOVA one factor](https://rpubs.com/Victorviro/607955) ([code](https://github.com/victorviro/design_of_experiments/blob/master/example_code_ancova_1_factor.Rmd))
 
 
