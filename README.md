@@ -2,6 +2,7 @@
 
 - [Statistical hypothesis testing](https://nbviewer.jupyter.org/github/victorviro/Statistics-and-probability/blob/master/Statistical_hypothesis_tests_in_Python.ipynb)
 - [Central limit theorem and law of large numbers](https://nbviewer.jupyter.org/github/victorviro/Statistics-and-probability/blob/master/Central_limit_theorem_and_law_of_large_numbers.ipynb)
+- [Time series forecasting](https://nbviewer.jupyter.org/github/victorviro/Statistics-and-probability/blob/master/Time_series_forecasting.ipynb)
 
 ### Design of experiments
 
